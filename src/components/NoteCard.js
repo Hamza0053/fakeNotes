@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 const NoteCard = ({ note, onPress }) => {
   const isDeleted = note.deleted_at !== null;
+  const isUnsynced = !note.synced && !isDeleted;
+  const isLocalId = typeof note.id === 'string' && note.id.startsWith('local_');
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
@@ -10,11 +12,20 @@ const NoteCard = ({ note, onPress }) => {
         <Text style={[styles.title, isDeleted && styles.deletedTitle]}>
           {note.title || 'Untitled'}
         </Text>
-        {isDeleted && (
-          <View style={styles.deletedBadge}>
-            <Text style={styles.deletedText}>DELETED</Text>
-          </View>
-        )}
+        <View style={styles.badgesContainer}>
+          {isUnsynced && (
+            <View style={styles.unsyncedBadge}>
+              <Text style={styles.unsyncedText}>
+                {isLocalId ? '📤' : '🔄'}
+              </Text>
+            </View>
+          )}
+          {isDeleted && (
+            <View style={styles.deletedBadge}>
+              <Text style={styles.deletedText}>DELETED</Text>
+            </View>
+          )}
+        </View>
       </View>
       <Text style={[styles.content, isDeleted && styles.deletedContent]} numberOfLines={2}>
         {note.content || 'No content'}
@@ -48,6 +59,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: 10,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  unsyncedBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  unsyncedText: {
+    fontSize: 12,
   },
   title: {
     fontSize: 18,

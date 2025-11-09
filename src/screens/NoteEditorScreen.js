@@ -9,13 +9,13 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import Clipboard from '@react-native-clipboard/clipboard';
 import {
   saveNote,
   updateNote,
   updateNoteTitle,
   deleteNote,
 } from '../database/db';
+import { getClipboardPermission, copyToClipboardIfAllowed } from '../utils/clipboardPermission';
 
 const NoteEditorScreen = ({ route, navigation }) => {
   const { note, readOnly } = route.params || {};
@@ -24,6 +24,7 @@ const NoteEditorScreen = ({ route, navigation }) => {
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
   const [currentNoteId, setCurrentNoteId] = useState(note?.id || null);
+  const [hasClipboardPermission, setHasClipboardPermission] = useState(false);
   const saveTimeoutRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const hasInitialized = useRef(false);
@@ -44,6 +45,15 @@ const NoteEditorScreen = ({ route, navigation }) => {
       ),
     });
   }, [currentNoteId, readOnly]);
+
+  // Check clipboard permission on mount
+  useEffect(() => {
+    const checkPermission = async () => {
+      const hasPermission = await getClipboardPermission();
+      setHasClipboardPermission(hasPermission);
+    };
+    checkPermission();
+  }, []);
 
   // Initialize note ID if editing
   useEffect(() => {
@@ -139,24 +149,28 @@ const NoteEditorScreen = ({ route, navigation }) => {
     };
   }, [content, title, currentNoteId, readOnly]);
 
-  // Auto-copy content to clipboard - DISABLED to prevent toast notifications
-  // useEffect(() => {
-  //   if (copyTimeoutRef.current) {
-  //     clearTimeout(copyTimeoutRef.current);
-  //   }
+  // Auto-copy content to clipboard if permission is granted
+  useEffect(() => {
+    if (!hasClipboardPermission || readOnly || !hasInitialized.current) {
+      return;
+    }
 
-  //   if (content.trim().length > 0) {
-  //     copyTimeoutRef.current = setTimeout(() => {
-  //       handleAutoCopy();
-  //     }, 500); // Copy after 0.5 seconds of no typing
-  //   }
+    if (copyTimeoutRef.current) {
+      clearTimeout(copyTimeoutRef.current);
+    }
 
-  //   return () => {
-  //     if (copyTimeoutRef.current) {
-  //       clearTimeout(copyTimeoutRef.current);
-  //     }
-  //   };
-  // }, [content]);
+    if (content.trim().length > 0) {
+      copyTimeoutRef.current = setTimeout(async () => {
+        await copyToClipboardIfAllowed(content);
+      }, 500); // Copy after 0.5 seconds of no typing
+    }
+
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current);
+      }
+    };
+  }, [content, hasClipboardPermission, readOnly]);
 
   const handleAutoSave = async () => {
     // Don't save if both fields are empty or already saving
@@ -197,24 +211,6 @@ const NoteEditorScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleAutoCopy = async () => {
-    if (content.trim().length > 0) {
-      try {
-        await Clipboard.setString(content);
-        console.log('Content copied to clipboard');
-      } catch (error) {
-        console.error('Error copying to clipboard:', error);
-        // If clipboard permission denied, show alert only once
-        if (error.message && error.message.includes('permission')) {
-          Alert.alert(
-            'Clipboard Permission',
-            'This app needs clipboard permission to auto-copy your notes. Please grant permission in settings.',
-            [{ text: 'OK' }]
-          );
-        }
-      }
-    }
-  };
 
   const handleDelete = () => {
     if (!currentNoteId) return;
@@ -263,7 +259,7 @@ const NoteEditorScreen = ({ route, navigation }) => {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.contentInput}
-          placeholder="Start typing... (auto-saved)"
+          placeholder="Start typing... "
           placeholderTextColor="#999"
           value={content}
           onChangeText={setContent}
@@ -277,11 +273,11 @@ const NoteEditorScreen = ({ route, navigation }) => {
           <Text style={styles.readOnlyText}>Read-only mode - Viewing as admin</Text>
         </View>
       )}
-      <View style={styles.infoContainer}>
+      {/* <View style={styles.infoContainer}>
         <Text style={styles.infoText}>
           ✓ Auto-saving to database...
         </Text>
-      </View>
+      </View> */}
     </ScrollView>
   );
 };
